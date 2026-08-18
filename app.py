@@ -17,7 +17,7 @@ st.set_page_config(
 
 # 1. Aplicar la foto del Congreso de fondo atenuado
 def aplicar_fondo_local():
-    archivos = ["congreso.jpg", "congreso.jpeg", "congreso.png"]
+    archivos = ["congreso.jpg", "congreso.jpeg", "congreso.png", "congreso.jpg.avif"]
     imagen_encontrada = next((f for f in archivos if os.path.exists(f)), None)
 
     if imagen_encontrada:
@@ -48,11 +48,21 @@ st.markdown(
 )
 
 
-# 2. Cargar base de datos desde Excel
+# 2. Cargar base de datos desde Excel con detección flexible de nombre
 @st.cache_data
 def cargar_datos_excel():
-    archivo = "Comisiones DIP CÓRDOBA.xlsx"
-    df = pd.read_excel(archivo)
+    archivos = [f for f in os.listdir('.') if f.endswith('.xlsx')]
+    archivo_encontrado = None
+    
+    for f in archivos:
+        if "comisiones" in f.lower() and "cordoba" in f.lower().replace('ó', 'o'):
+            archivo_encontrado = f
+            break
+            
+    if not archivo_encontrado:
+        archivo_encontrado = "Comisiones DIP CORDOBA.xlsx"
+
+    df = pd.read_excel(archivo_encontrado)
     df["Diputado/a"] = df["Diputado/a"].astype(str).str.strip()
     df["Comisión"] = df["Comisión"].astype(str).str.strip()
     df["Cargo que ocupa"] = df["Cargo que ocupa"].astype(str).str.strip()
