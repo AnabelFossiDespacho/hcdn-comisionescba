@@ -1,5 +1,7 @@
 import base64
 import os
+import re
+from datetime import datetime
 import pandas as pd
 import requests
 import urllib3
@@ -100,7 +102,7 @@ def obtener_detalle_citacion(url_citacion):
     except Exception as e:
         return f"Error al consultar el detalle: {e}"
 
-# 4. Obtener agenda limpia separando elemento por elemento del HTML
+# 4. Obtener agenda detectando fechas por bloque
 @st.cache_data(ttl=300)
 def obtener_agenda_hcdn():
     url = "https://www.hcdn.gob.ar/comisiones/agenda/"
@@ -110,13 +112,23 @@ def obtener_agenda_hcdn():
         response = requests.get(url, headers=headers, timeout=10, verify=False)
         soup = BeautifulSoup(response.text, "html.parser")
 
+        fecha_actual = "Sin Fecha Especificada"
+        texto_pagina = soup.get_text()
+        match_fecha = re.search(r'(lunes|martes|miércoles|jueves|viernes|sábado|domingo)\s+\d{1,2}\s+de\s+[a-z]+(?:\s+de\s+\d{4})?', texto_pagina, re.IGNORECASE)
+        if match_fecha:
+            fecha_actual = match_fecha.group(0).capitalize()
+
         eventos = []
-        # Buscar párrafos, filas o divisores individuales de reuniones
         items = soup.find_all(["p", "tr", "li", "div"])
 
         for it in items:
-            # Filtramos solo elementos concretos de reunión (que tengan hora o palabra clave)
             texto = it.get_text(separator=" | ", strip=True)
+            
+            # Si el elemento es un encabezado de fecha, actualizar la fecha activa
+            m_dia = re.search(r'^(lunes|martes|miércoles|jueves|viernes|sábado|domingo)\s+\d{1,2}\s+de\s+[a-z]+', texto, re.IGNORECASE)
+            if m_dia:
+                fecha_actual = m_dia.group(0).capitalize()
+
             if len(texto) > 20 and len(texto) < 600 and any(k in texto.upper() for k in ["COMISIÓN", "REUNIÓN", "INVITADOS", "INFORMATIVA", "CONJUNTA", "GRUPO PARLAMENTARIO"]):
                 link_tag = it.find("a", href=lambda h: h and "citacion" in h.lower()) or it.find("a", string=lambda s: s and "citación" in s.lower())
                 
@@ -125,9 +137,8 @@ def obtener_agenda_hcdn():
                     href = link_tag["href"]
                     url_citacion = href if href.startswith("http") else f"https://www.hcdn.gob.ar{href}"
 
-                eventos.append({"texto": texto, "citacion": url_citacion})
+                eventos.append({"texto": texto, "citacion": url_citacion, "fecha": fecha_actual})
 
-        # Eliminar duplicados reteniendo orden
         vistos = set()
         eventos_unicos = []
         for ev in eventos:
@@ -155,18 +166,22 @@ vista = st.sidebar.radio(
     ],
 )
 
-# VISTA 1: Cruce de la Semana
+# VISTA 1: Cruce con filtro por día
 if vista == "📅 Agenda de Comisiones (Cruce)":
-    st.subheader("📅 Convocatorias Detectadas")
+    st.subheader("📅 Convocatorias Detectadas por Comisión")
 
-    col_filtro, col_btn = st.columns([3, 1])
+    col_dia, col_filtro, col_btn = st.columns([2, 2, 1])
     
+    with col_dia:
+        dias_opciones = ["Todos los días", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes"]
+        dia_filtro = st.selectbox("📆 Seleccionar día:", dias_opciones)
+
     with col_filtro:
-        busqueda = st.text_input("🔍 Buscar comisión o tema (ej: Comercio, Obras Públicas, Economía):", "")
+        busqueda = st.text_input("🔍 Buscar comisión o tema:", "")
     
     with col_btn:
         st.write("")
-        if st.button("🔄 Actualizar Agenda"):
+        if st.button("🔄 Actualizar"):
             st.cache_data.clear()
             st.rerun()
 
@@ -176,8 +191,16 @@ if vista == "📅 Agenda de Comisiones (Cruce)":
         for idx, item in enumerate(reuniones_semana):
             reunion_texto = item["texto"]
             url_citacion = item["citacion"]
+            fecha_evento = item["fecha"]
 
-            # Si el usuario busca algo específico, filtra por ese texto
+            # Filtro por Día seleccionado
+            if dia_filtro != "Todos los días":
+                dia_buscado = dia_filtro.lower()
+                # Verifica si coincide en la fecha asignada o dentro del texto
+                if dia_buscado not in fecha_evento.lower() and dia_buscado not in reunion_texto.lower():
+                    continue
+
+            # Filtro opcional por texto
             if busqueda and busqueda.lower() not in reunion_texto.lower():
                 continue
 
@@ -199,7 +222,7 @@ if vista == "📅 Agenda de Comisiones (Cruce)":
                 st.markdown("---")
                 
                 with st.container():
-                    st.markdown(f"### 📌 Reunión #{encontrados}")
+                    st.markdown(f"### 📌 Reunión #{encontrados} — 🗓️ `{fecha_evento}`")
                     
                     col_info, col_dips = st.columns([3, 2])
 
@@ -227,7 +250,7 @@ if vista == "📅 Agenda de Comisiones (Cruce)":
                                 st.text(detalle)
 
         if encontrados == 0:
-            st.warning("No se encontraron convocatorias coincidentes con la búsqueda o la nómina de diputados.")
+            st.warning(f"No se encontraron convocatorias coincidentes para el día '{dia_filtro}'.")
     else:
         st.info("No hay reuniones cargadas actualmente.")
 
@@ -262,7 +285,8 @@ elif vista == "📋 Toda la Agenda HCDN (con Temarios)":
 
     if reuniones_semana:
         for idx, item in enumerate(reuniones_semana):
-            with st.expander(f"Evento #{idx+1}: {item['texto'][:90]}..."):
+            with st.expander(f"Evento #{idx+1} ({item['fecha']}): {item['texto'][:80]}..."):
+                st.write(f"**Fecha:** {item['fecha']}")
                 st.write("**Información General:**")
                 st.write(item["texto"])
 
