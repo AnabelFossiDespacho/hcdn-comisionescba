@@ -8,18 +8,29 @@ import streamlit as st
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 st.set_page_config(
-    page_title="CONGRESO - COMISIONES DIPUTADOS PROVINCIAS UNIDAD CÓRDOBA",
+    page_title="CONGRESO - COMISIONES DIPUTADOS CÓRDOBA - PROVINCIAS UNIDAS",
     page_icon="🏛️",
     layout="wide",
 )
 
-# Imagen del Congreso de la Nación en la parte superior
-st.image(
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Palacio_del_Congreso_de_la_Naci%C3%B3n_Argentina%2C_Buenos_Aires.jpg/1200px-Palacio_del_Congreso_de_la_Naci%C3%B3n_Argentina%2C_Buenos_Aires.jpg",
-    use_container_width=True,
+# Estilo CSS para poner la imagen del Congreso de fondo, fija y clarita (opacidad reducida)
+st.markdown(
+    """
+    <style>
+    .stApp {
+        background: linear-gradient(rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.88)), 
+                    url("https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Palacio_del_Congreso_de_la_Naci%C3%B3n_Argentina%2C_Buenos_Aires.jpg/1200px-Palacio_del_Congreso_de_la_Naci%C3%B3n_Argentina%2C_Buenos_Aires.jpg");
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        background-attachment: fixed;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
 )
 
-st.title("🏛️ CONGRESO - COMISIONES DIPUTADOS PROVINCIAS UNIDAD CÓRDOBA")
+st.title("🏛️ CONGRESO - COMISIONES DIPUTADOS CÓRDOBA - PROVINCIAS UNIDAS")
 st.markdown(
     "Cruce automático entre la **Agenda Parlamentaria de la HCDN** y la nómina oficial de diputados."
 )
