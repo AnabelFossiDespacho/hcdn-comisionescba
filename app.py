@@ -1,8 +1,6 @@
 import pandas as pd
 import requests
 import urllib3
-import base64
-import os
 from bs4 import BeautifulSoup
 import streamlit as st
 
@@ -15,29 +13,26 @@ st.set_page_config(
     layout="wide",
 )
 
-# Función para convertir la imagen local a Base64 para el fondo CSS
-def set_bg_local(image_file):
-    if os.path.exists(image_file):
-        with open(image_file, "rb") as f:
-            encoded_string = base64.b64encode(f.read()).decode()
-        st.markdown(
-            f"""
-            <style>
-            .stApp {{
-                background: linear-gradient(rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.88)),
-                            url("data:image/jpg;base64,{encoded_string}");
-                background-size: cover;
-                background-position: center;
-                background-repeat: no-repeat;
-                background-attachment: fixed;
-            }}
-            </style>
-            """,
-            unsafe_allow_html=True
-        )
-
-# Cargar imagen de fondo
-set_bg_local("congreso.jpg")
+# Estilo CSS con imagen de fondo del Congreso atenuada
+st.markdown(
+    """
+    <style>
+    .stApp {
+        background-image: linear-gradient(rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.85)), 
+                          url('https://images.unsplash.com/photo-1541872703-74c5e44368f9?q=80&w=1600&auto=format&fit=crop');
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
+    }
+    
+    /* Contenedores con fondo semi-blanco para mejor legibilidad */
+    div[data-testid="stSidebar"] {
+        background-color: rgba(248, 249, 250, 0.9) !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
 
 st.title("🏛️ CONGRESO - COMISIONES DIPUTADOS CÓRDOBA - PROVINCIAS UNIDAS")
 st.markdown(
