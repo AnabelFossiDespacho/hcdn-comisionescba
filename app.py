@@ -1,5 +1,6 @@
 import base64
 import os
+from datetime import datetime
 import pandas as pd
 import requests
 import urllib3
@@ -48,7 +49,7 @@ st.markdown(
 )
 
 
-# 2. Cargar base de datos desde Excel con detección flexible de nombre
+# 2. Cargar base de datos desde Excel con detección flexible
 @st.cache_data
 def cargar_datos_excel():
     archivos = [f for f in os.listdir('.') if f.endswith('.xlsx')]
@@ -170,15 +171,34 @@ vista = st.sidebar.radio(
     ],
 )
 
-# VISTA 1: Cruce de la Semana
+# VISTA 1: Cruce de la Semana con Calendario
 if vista == "📅 Agenda de la Semana (Cruce)":
     st.subheader("📅 Convocatorias Detectadas esta Semana")
 
-    col_btn, _ = st.columns([1, 4])
+    # BARRA SUPERIOR CON CALENDARIO
+    col_fecha, col_filtros, col_btn = st.columns([2, 2, 1])
+    
+    with col_fecha:
+        fecha_seleccionada = st.date_input(
+            "📆 Día a consultar:",
+            value=datetime.now().date(),
+            format="DD/MM/YYYY"
+        )
+    
+    with col_filtros:
+        filtrar_por_dia = st.checkbox("Filtrar reuniones por este día", value=False)
+
     with col_btn:
+        st.write("") # Espaciador
         if st.button("🔄 Actualizar Agenda"):
             st.cache_data.clear()
             st.rerun()
+
+    # Muestra el día seleccionado marcado
+    dias_semana_es = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+    nombre_dia = dias_semana_es[fecha_seleccionada.weekday()]
+    
+    st.info(f"📌 **Día seleccionado:** {nombre_dia} {fecha_seleccionada.strftime('%d/%m/%Y')}")
 
     if reuniones_semana:
         encontrados = 0
@@ -186,6 +206,13 @@ if vista == "📅 Agenda de la Semana (Cruce)":
         for idx, item in enumerate(reuniones_semana):
             reunion_texto = item["texto"]
             url_citacion = item["citacion"]
+
+            # Si está activado el filtro por día, evalúa si la fecha/día coincide con el texto de la citación
+            if filtrar_por_dia:
+                num_dia = str(fecha_seleccionada.day)
+                if nombre_dia.lower() not in reunion_texto.lower() and f" {num_dia} " not in reunion_texto:
+                    continue
+
             asistentes_detectados = []
 
             for _, row in df_diputados.iterrows():
@@ -234,8 +261,8 @@ if vista == "📅 Agenda de la Semana (Cruce)":
                                 st.text(detalle)
 
         if encontrados == 0:
-            st.info("No se detectaron reuniones asignadas a tus diputados esta semana.")
-            st.markdown("👉 *Consulta la pestaña **'📋 Toda la Agenda HCDN'** para revisar la lista general.*")
+            st.warning(f"No se detectaron convocatorias de tus diputados para el día {nombre_dia} {fecha_seleccionada.strftime('%d/%m/%Y')}.")
+            st.markdown("👉 *Prueba destildar la casilla 'Filtrar reuniones por este día' para ver el resumen de toda la semana.*")
     else:
         st.info("No hay reuniones cargadas actualmente.")
 
