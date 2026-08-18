@@ -4,7 +4,7 @@ import urllib3
 from bs4 import BeautifulSoup
 import streamlit as st
 
-# Desactivar advertencias SSL de la web de la HCDN
+# Desactivar advertencias SSL
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 st.set_page_config(
@@ -37,7 +37,7 @@ except Exception as e:
     st.stop()
 
 
-# 2. Función para extraer el detalle del temario desde el link de la citación
+# 2. Extraer detalle del temario desde el link de citación
 @st.cache_data(ttl=1800)
 def obtener_detalle_citacion(url_citacion):
     if not url_citacion:
@@ -52,7 +52,6 @@ def obtener_detalle_citacion(url_citacion):
         )
         soup = BeautifulSoup(res.text, "html.parser")
 
-        # Buscar el bloque principal del temario
         contenido = soup.find(
             "div",
             class_=lambda c: c and ("contenido" in str(c) or "temario" in str(c)),
@@ -62,18 +61,17 @@ def obtener_detalle_citacion(url_citacion):
             texto = contenido.get_text(separator="\n", strip=True)
             if len(texto) > 30:
                 return texto
-        
-        # Respaldo: obtener párrafos estructurados
+
         parrafos = []
         for p in soup.find_all("p"):
             p_texto = p.get_text(strip=True)
             if len(p_texto) > 20:
                 parrafos.append(p_texto)
 
-        return "\n\n".join(parrafos) if parrafos else "Detalle de citación no disponible directamente en HTML (posible PDF adjunto)."
+        return "\n\n".join(parrafos) if parrafos else "Detalle de citación no disponible directamente en HTML."
 
     except Exception as e:
-        return f"Error al consultar el detalle de la citación: {e}"
+        return f"Error al consultar el detalle: {e}"
 
 
 # 3. Obtener agenda oficial HCDN
@@ -100,7 +98,6 @@ def obtener_agenda_hcdn():
                 k in texto.upper()
                 for k in ["COMISIÓN", "REUNIÓN", "INVITADOS", "INFORMATIVA", "CONJUNTA"]
             ):
-                # Extraer URL de 'Ver citación'
                 link_tag = b.find(
                     "a", string=lambda s: s and "citación" in s.lower()
                 ) or b.find(
@@ -116,7 +113,6 @@ def obtener_agenda_hcdn():
 
                 eventos.append({"texto": texto, "citacion": url_citacion})
 
-        # Eliminar duplicados
         vistos = set()
         eventos_unicos = []
         for ev in eventos:
@@ -139,12 +135,13 @@ vista = st.sidebar.radio(
     "Seleccionar vista:",
     [
         "📅 Agenda de la Semana (Cruce)",
+        "📊 Gráficos y Estadísticas",
         "📋 Toda la Agenda HCDN (con Temarios)",
         "👥 Nómina de Diputados y Comisiones",
     ],
 )
 
-# VISTA 1: Cruce de la Semana con Diputados por Córdoba
+# VISTA 1: Cruce de la Semana
 if vista == "📅 Agenda de la Semana (Cruce)":
     st.subheader("📅 Convocatorias Detectadas esta Semana")
 
@@ -184,7 +181,6 @@ if vista == "📅 Agenda de la Semana (Cruce)":
 
                     st.divider()
 
-                    # Mostrar TEMARIO COMPLETO
                     if url_citacion:
                         st.subheader("📄 Temario y Orden del Día (Citación Oficial)")
                         with st.spinner("Cargando temario detallado de la HCDN..."):
@@ -202,16 +198,59 @@ if vista == "📅 Agenda de la Semana (Cruce)":
                         st.caption("Esta convocatoria no incluye enlace directo a citación.")
 
         if encontrados == 0:
-            st.info(
-                "No se detectaron reuniones para las comisiones asignadas a tus diputados esta semana."
-            )
-            st.markdown(
-                "👉 *Consulta la pestaña **'📋 Toda la Agenda HCDN'** para revisar el listado completo con temarios.*"
-            )
+            st.info("No se detectaron reuniones para las comisiones asignadas a tus diputados esta semana.")
+            st.markdown("👉 *Consulta la pestaña **'📋 Toda la Agenda HCDN'** para revisar el listado completo.*")
     else:
         st.info("No hay reuniones cargadas actualmente.")
 
-# VISTA 2: Toda la agenda publicada con sus temarios
+# VISTA 2: NUEVA SECCIÓN DE GRÁFICOS Y ESTADÍSTICAS
+elif vista == "📊 Gráficos y Estadísticas":
+    st.subheader("📊 Análisis de Participación de la Delegación Córdoba")
+
+    # Métricas principales (Tarjetas rápidas)
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Total Diputados Categoriados", df_diputados["Diputado/a"].nunique())
+    col2.metric("Total Comisiones Cubiertas", df_diputados["Comisión"].nunique())
+    col3.metric("Total de Asignaciones", len(df_diputados))
+
+    st.divider()
+
+    col_izq, col_der = st.columns(2)
+
+    with col_izq:
+        st.write("### 👥 Cantidad de Comisiones por Diputado/a")
+        # Conteo por diputado
+        conteo_diputados = (
+            df_diputados["Diputado/a"]
+            .value_counts()
+            .reset_index()
+        )
+        conteo_diputados.columns = ["Diputado/a", "Cantidad de Comisiones"]
+        
+        # Gráfico de barras horizontales
+        st.bar_chart(
+            conteo_diputados.set_index("Diputado/a"),
+            height=380,
+        )
+
+    with col_der:
+        st.write("### 🏛️ Comisiones con Mayor Representación de Córdoba")
+        conteo_comisiones = (
+            df_diputados["Comisión"]
+            .value_counts()
+            .reset_index()
+        )
+        conteo_comisiones.columns = ["Comisión", "Cantidad de Diputados"]
+        
+        # Mostrar las comisiones más concurridas
+        st.dataframe(
+            conteo_comisiones,
+            use_container_width=True,
+            hide_index=True,
+            height=380
+        )
+
+# VISTA 3: Toda la agenda publicada
 elif vista == "📋 Toda la Agenda HCDN (con Temarios)":
     st.subheader("📋 Convocatorias Oficiales y Temarios HCDN")
 
@@ -231,7 +270,7 @@ elif vista == "📋 Toda la Agenda HCDN (con Temarios)":
     else:
         st.info("No se pudo obtener la agenda general.")
 
-# VISTA 3: Nómina Completa
+# VISTA 4: Nómina Completa
 else:
     st.subheader("👥 Integración de Comisiones")
     diputado_sel = st.selectbox(
