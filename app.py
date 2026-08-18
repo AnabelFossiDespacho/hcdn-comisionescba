@@ -8,12 +8,18 @@ import streamlit as st
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 st.set_page_config(
-    page_title="Dashboard HCDN - Diputados por Córdoba",
+    page_title="CONGRESO - COMISIONES DIPUTADOS PROVINCIAS UNIDAD CÓRDOBA",
     page_icon="🏛️",
     layout="wide",
 )
 
-st.title("🏛️ Monitor de Comisiones HCDN - Delegación Córdoba")
+# Imagen del Congreso de la Nación en la parte superior
+st.image(
+    "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Palacio_del_Congreso_de_la_Naci%C3%B3n_Argentina%2C_Buenos_Aires.jpg/1200px-Palacio_del_Congreso_de_la_Naci%C3%B3n_Argentina%2C_Buenos_Aires.jpg",
+    use_container_width=True,
+)
+
+st.title("🏛️ CONGRESO - COMISIONES DIPUTADOS PROVINCIAS UNIDAD CÓRDOBA")
 st.markdown(
     "Cruce automático entre la **Agenda Parlamentaria de la HCDN** y la nómina oficial de diputados."
 )
@@ -119,7 +125,7 @@ def obtener_agenda_hcdn():
 
 reuniones_semana = obtener_agenda_hcdn()
 
-# 4. Navegación Lateral (Formato Anterior)
+# 4. Navegación Lateral
 st.sidebar.header("🔍 Navegación")
 vista = st.sidebar.radio(
     "Seleccionar vista:",
