@@ -1,6 +1,8 @@
 import pandas as pd
 import requests
 import urllib3
+import base64
+import os
 from bs4 import BeautifulSoup
 import streamlit as st
 
@@ -13,22 +15,29 @@ st.set_page_config(
     layout="wide",
 )
 
-# Estilo CSS para poner la imagen del Congreso de fondo, fija y clarita (opacidad reducida)
-st.markdown(
-    """
-    <style>
-    .stApp {
-        background: linear-gradient(rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.88)), 
-                    url("https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Palacio_del_Congreso_de_la_Naci%C3%B3n_Argentina%2C_Buenos_Aires.jpg/1200px-Palacio_del_Congreso_de_la_Naci%C3%B3n_Argentina%2C_Buenos_Aires.jpg");
-        background-size: cover;
-        background-position: center;
-        background-repeat: no-repeat;
-        background-attachment: fixed;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
+# Función para convertir la imagen local a Base64 para el fondo CSS
+def set_bg_local(image_file):
+    if os.path.exists(image_file):
+        with open(image_file, "rb") as f:
+            encoded_string = base64.b64encode(f.read()).decode()
+        st.markdown(
+            f"""
+            <style>
+            .stApp {{
+                background: linear-gradient(rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.88)),
+                            url("data:image/jpg;base64,{encoded_string}");
+                background-size: cover;
+                background-position: center;
+                background-repeat: no-repeat;
+                background-attachment: fixed;
+            }}
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
+
+# Cargar imagen de fondo
+set_bg_local("congreso.jpg")
 
 st.title("🏛️ CONGRESO - COMISIONES DIPUTADOS CÓRDOBA - PROVINCIAS UNIDAS")
 st.markdown(
