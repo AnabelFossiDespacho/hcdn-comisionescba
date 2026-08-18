@@ -1,5 +1,6 @@
 import base64
 import os
+import re
 from datetime import datetime
 import pandas as pd
 import requests
@@ -16,7 +17,7 @@ st.set_page_config(
     layout="wide",
 )
 
-# 1. Aplicar la foto del Congreso de fondo atenuado
+# 1. Fondo del Congreso
 def aplicar_fondo_local():
     archivos = ["congreso.jpg", "congreso.jpeg", "congreso.png", "congreso.jpg.avif"]
     imagen_encontrada = next((f for f in archivos if os.path.exists(f)), None)
@@ -48,8 +49,7 @@ st.markdown(
     "Cruce automático entre la **Agenda Parlamentaria de la HCDN** y la nómina oficial de diputados."
 )
 
-
-# 2. Cargar base de datos desde Excel con detección flexible
+# 2. Cargar Excel
 @st.cache_data
 def cargar_datos_excel():
     archivos = [f for f in os.listdir('.') if f.endswith('.xlsx')]
@@ -69,15 +69,13 @@ def cargar_datos_excel():
     df["Cargo que ocupa"] = df["Cargo que ocupa"].astype(str).str.strip()
     return df
 
-
 try:
     df_diputados = cargar_datos_excel()
 except Exception as e:
     st.error(f"Error al cargar el archivo Excel: {e}")
     st.stop()
 
-
-# 3. Extraer detalle del temario desde el link de citación
+# 3. Extraer temario
 @st.cache_data(ttl=1800)
 def obtener_detalle_citacion(url_citacion):
     if not url_citacion:
@@ -98,19 +96,13 @@ def obtener_detalle_citacion(url_citacion):
             if len(texto) > 30:
                 return texto
 
-        parrafos = []
-        for p in soup.find_all("p"):
-            p_texto = p.get_text(strip=True)
-            if len(p_texto) > 20:
-                parrafos.append(p_texto)
-
+        parrafos = [p.get_text(strip=True) for p in soup.find_all("p") if len(p.get_text(strip=True)) > 20]
         return "\n\n".join(parrafos) if parrafos else "Sin detalle disponible en formato HTML."
 
     except Exception as e:
         return f"Error al consultar el detalle: {e}"
 
-
-# 4. Obtener agenda oficial HCDN
+# 4. Obtener agenda parseando cada reunión individualmente
 @st.cache_data(ttl=300)
 def obtener_agenda_hcdn():
     url = "https://www.hcdn.gob.ar/comisiones/agenda/"
@@ -120,22 +112,17 @@ def obtener_agenda_hcdn():
         response = requests.get(url, headers=headers, timeout=10, verify=False)
         soup = BeautifulSoup(response.text, "html.parser")
 
+        # Intentar extraer por filas de tabla o contenedores específicos
+        filas = soup.find_all("tr")
+        if not filas or len(filas) < 3:
+            filas = soup.find_all("div", class_=lambda c: c and ("evento" in str(c) or "item" in str(c) or "card" in str(c)))
+
         eventos = []
-        bloques = soup.find_all(["tr", "div", "li"])
 
-        for b in bloques:
-            texto = b.get_text(separator=" | ", strip=True)
-
-            if len(texto) > 25 and any(
-                k in texto.upper()
-                for k in ["COMISIÓN", "REUNIÓN", "INVITADOS", "INFORMATIVA", "CONJUNTA"]
-            ):
-                link_tag = b.find(
-                    "a", string=lambda s: s and "citación" in s.lower()
-                ) or b.find(
-                    "a", href=lambda h: h and "citacion" in h.lower()
-                )
-
+        for f in filas:
+            texto = f.get_text(separator=" | ", strip=True)
+            if len(texto) > 20 and any(k in texto.upper() for k in ["COMISIÓN", "REUNIÓN", "INVITADOS", "INFORMATIVA", "CONJUNTA"]):
+                link_tag = f.find("a", href=lambda h: h and "citacion" in h.lower()) or f.find("a", string=lambda s: s and "citación" in s.lower())
                 url_citacion = None
                 if link_tag and link_tag.has_attr("href"):
                     href = link_tag["href"]
@@ -143,10 +130,31 @@ def obtener_agenda_hcdn():
 
                 eventos.append({"texto": texto, "citacion": url_citacion})
 
+        # Separación inteligente por encabezados de hora/día si vinieron pegados
+        eventos_separados = []
+        patron_separador = re.compile(r'(\b(?:lunes|martes|miércoles|jueves|viernes|sábado|domingo)\s+\d{1,2}\s+de\s+[a-z]+|\b\d{1,2}:\d{2}\s*\|)', re.IGNORECASE)
+
+        for ev in eventos:
+            partes = patron_separador.split(ev["texto"])
+            if len(partes) > 2:
+                # Se encontraron múltiples reuniones en un solo bloque, las fragmentamos
+                temp_texto = ""
+                for p in partes:
+                    if patron_separador.match(p):
+                        if temp_texto.strip():
+                            eventos_separados.append({"texto": temp_texto.strip(), "citacion": ev["citacion"]})
+                        temp_texto = p
+                    else:
+                        temp_texto += " " + p
+                if temp_texto.strip():
+                    eventos_separados.append({"texto": temp_texto.strip(), "citacion": ev["citacion"]})
+            else:
+                eventos_separados.append(ev)
+
         vistos = set()
         eventos_unicos = []
-        for ev in eventos:
-            if ev["texto"] not in vistos:
+        for ev in eventos_separados:
+            if ev["texto"] not in vistos and len(ev["texto"]) > 15:
                 vistos.add(ev["texto"])
                 eventos_unicos.append(ev)
 
@@ -156,7 +164,6 @@ def obtener_agenda_hcdn():
         st.warning(f"Error al conectar con la HCDN: {e}")
         return []
 
-
 reuniones_semana = obtener_agenda_hcdn()
 
 # 5. Navegación Lateral
@@ -164,41 +171,37 @@ st.sidebar.header("🔍 Navegación")
 vista = st.sidebar.radio(
     "Seleccionar vista:",
     [
-        "📅 Agenda de la Semana (Cruce)",
+        "📅 Agenda por Día (Cruce)",
         "📊 Gráficos y Estadísticas",
         "📋 Toda la Agenda HCDN (con Temarios)",
         "👥 Nómina de Diputados y Comisiones",
     ],
 )
 
-# VISTA 1: Cruce de la Semana con Calendario
-if vista == "📅 Agenda de la Semana (Cruce)":
-    st.subheader("📅 Convocatorias Detectadas esta Semana")
+# VISTA 1: Cruce de la Semana
+if vista == "📅 Agenda por Día (Cruce)":
+    st.subheader("📅 Convocatorias por Día Seleccionado")
 
-    # BARRA SUPERIOR CON CALENDARIO
-    col_fecha, col_filtros, col_btn = st.columns([2, 2, 1])
+    col_fecha, col_btn = st.columns([3, 1])
     
     with col_fecha:
         fecha_seleccionada = st.date_input(
-            "📆 Día a consultar:",
+            "📆 Selecciona el día a consultar:",
             value=datetime.now().date(),
             format="DD/MM/YYYY"
         )
     
-    with col_filtros:
-        filtrar_por_dia = st.checkbox("Filtrar reuniones por este día", value=False)
-
     with col_btn:
-        st.write("") # Espaciador
+        st.write("")
         if st.button("🔄 Actualizar Agenda"):
             st.cache_data.clear()
             st.rerun()
 
-    # Muestra el día seleccionado marcado
-    dias_semana_es = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+    dias_semana_es = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
     nombre_dia = dias_semana_es[fecha_seleccionada.weekday()]
-    
-    st.info(f"📌 **Día seleccionado:** {nombre_dia} {fecha_seleccionada.strftime('%d/%m/%Y')}")
+    num_dia = str(fecha_seleccionada.day)
+
+    st.info(f"📌 **Filtrando reuniones para:** {nombre_dia.capitalize()} {fecha_seleccionada.strftime('%d/%m/%Y')}")
 
     if reuniones_semana:
         encontrados = 0
@@ -207,14 +210,12 @@ if vista == "📅 Agenda de la Semana (Cruce)":
             reunion_texto = item["texto"]
             url_citacion = item["citacion"]
 
-            # Si está activado el filtro por día, evalúa si la fecha/día coincide con el texto de la citación
-            if filtrar_por_dia:
-                num_dia = str(fecha_seleccionada.day)
-                if nombre_dia.lower() not in reunion_texto.lower() and f" {num_dia} " not in reunion_texto:
-                    continue
+            # Filtro estricto por día seleccionado
+            match_dia = nombre_dia in reunion_texto.lower() or f"{num_dia} de" in reunion_texto.lower() or f" {num_dia} " in reunion_texto
+            if not match_dia:
+                continue
 
             asistentes_detectados = []
-
             for _, row in df_diputados.iterrows():
                 comision = row["Comisión"]
                 diputado = row["Diputado/a"]
@@ -229,20 +230,19 @@ if vista == "📅 Agenda de la Semana (Cruce)":
 
             if asistentes_detectados:
                 encontrados += 1
-                
                 st.markdown("---")
                 
                 with st.container():
-                    st.markdown(f"### 📌 Convocatoria #{encontrados}")
+                    st.markdown(f"### 📌 Comisión #{encontrados}")
                     
                     col_info, col_dips = st.columns([3, 2])
 
                     with col_info:
-                        st.markdown("#### 📋 Detalle Oficial")
+                        st.markdown("#### 📋 Detalle Oficial de la Convocatoria")
                         st.info(reunion_texto)
                         
                         if url_citacion:
-                            st.markdown(f"🔗 [**Ver citación oficial en la web de HCDN**]({url_citacion})")
+                            st.markdown(f"🔗 [**Ver citación oficial en HCDN**]({url_citacion})")
 
                     with col_dips:
                         st.markdown("#### 👥 Diputados por Córdoba")
@@ -256,17 +256,20 @@ if vista == "📅 Agenda de la Semana (Cruce)":
 
                     if url_citacion:
                         with st.expander("📄 Ver Temario y Orden del Día Completo", expanded=False):
-                            with st.spinner("Cargando orden del día..."):
+                            with st.spinner("Cargando temario..."):
                                 detalle = obtener_detalle_citacion(url_citacion)
                                 st.text(detalle)
 
         if encontrados == 0:
-            st.warning(f"No se detectaron convocatorias de tus diputados para el día {nombre_dia} {fecha_seleccionada.strftime('%d/%m/%Y')}.")
-            st.markdown("👉 *Prueba destildar la casilla 'Filtrar reuniones por este día' para ver el resumen de toda la semana.*")
+            st.warning(f"No hay convocatorias de tus diputados para el {nombre_dia} {fecha_seleccionada.strftime('%d/%m/%Y')}.")
+
+            with st.expander("👀 Ver todas las reuniones sin filtrar por fecha"):
+                for idx, item in enumerate(reuniones_semana):
+                    st.write(f"• {item['texto']}")
     else:
         st.info("No hay reuniones cargadas actualmente.")
 
-# VISTA 2: Gráficos y Estadísticas
+# VISTA 2: Gráficos
 elif vista == "📊 Gráficos y Estadísticas":
     st.subheader("📊 Análisis de Participación de la Delegación Córdoba")
 
@@ -291,7 +294,7 @@ elif vista == "📊 Gráficos y Estadísticas":
         conteo_comisiones.columns = ["Comisión", "Cantidad de Diputados"]
         st.dataframe(conteo_comisiones, use_container_width=True, hide_index=True, height=380)
 
-# VISTA 3: Toda la agenda HCDN
+# VISTA 3: Toda la agenda
 elif vista == "📋 Toda la Agenda HCDN (con Temarios)":
     st.subheader("📋 Convocatorias Oficiales de la HCDN")
 
