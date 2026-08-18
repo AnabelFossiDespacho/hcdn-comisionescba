@@ -52,7 +52,7 @@ def obtener_detalle_citacion(url_citacion):
         )
         soup = BeautifulSoup(res.text, "html.parser")
 
-        # Buscar el bloque principal de la orden del día / temario
+        # Buscar el bloque principal del temario
         contenido = soup.find(
             "div",
             class_=lambda c: c and ("contenido" in str(c) or "temario" in str(c)),
@@ -60,15 +60,17 @@ def obtener_detalle_citacion(url_citacion):
 
         if contenido:
             texto = contenido.get_text(separator="\n", strip=True)
-            return texto if len(texto) > 30 else "No se pudo extraer el texto de la citación."
+            if len(texto) > 30:
+                return texto
         
-        # Respaldo: obtener párrafos principales
-        parrafos = [
-            p.get_text(strip=True)
-            for p.find_all("p")
-            if len(p.get_text(strip=True)) > 20
-        ]
-        return "\n\n".join(parrafos) if parrafos else "Detalle de citación no disponible."
+        # Respaldo: obtener párrafos estructurados
+        parrafos = []
+        for p in soup.find_all("p"):
+            p_texto = p.get_text(strip=True)
+            if len(p_texto) > 20:
+                parrafos.append(p_texto)
+
+        return "\n\n".join(parrafos) if parrafos else "Detalle de citación no disponible directamente en HTML (posible PDF adjunto)."
 
     except Exception as e:
         return f"Error al consultar el detalle de la citación: {e}"
@@ -182,7 +184,7 @@ if vista == "📅 Agenda de la Semana (Cruce)":
 
                     st.divider()
 
-                    # Botón/Desplegable para ver el TEMARIO COMPLETO
+                    # Mostrar TEMARIO COMPLETO
                     if url_citacion:
                         st.subheader("📄 Temario y Orden del Día (Citación Oficial)")
                         with st.spinner("Cargando temario detallado de la HCDN..."):
