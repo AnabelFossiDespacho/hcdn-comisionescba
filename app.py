@@ -1,7 +1,11 @@
 import pandas as pd
 import requests
+import urllib3
 from bs4 import BeautifulSoup
 import streamlit as st
+
+# Desactivar advertencia de certificado SSL no verificado de la HCDN
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 st.set_page_config(
     page_title="Dashboard HCDN - Diputados por Córdoba",
@@ -43,7 +47,10 @@ def obtener_agenda_hcdn():
     }
 
     try:
-        response = requests.get(url, headers=headers, timeout=10)
+        # verify=False resuelve el cartel amarillo del certificado SSL
+        response = requests.get(
+            url, headers=headers, timeout=10, verify=False
+        )
         soup = BeautifulSoup(response.text, "html.parser")
 
         reuniones = []
@@ -118,7 +125,8 @@ else:
 
     # Filtro por Diputado
     diputado_sel = st.selectbox(
-        "Filtrar por Diputado/a:", ["Todos"] + list(df_diputados["Diputado/a"].unique())
+        "Filtrar por Diputado/a:",
+        ["Todos"] + list(df_diputados["Diputado/a"].unique()),
     )
 
     if diputado_sel != "Todos":
