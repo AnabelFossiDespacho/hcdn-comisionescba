@@ -18,7 +18,7 @@ st.markdown(
 # 1. Cargar base de datos local desde el archivo Excel
 @st.cache_data
 def cargar_datos_excel():
-    archivo = "Comisiones DIP CORDOBA.xlsx"
+    archivo = "Comisiones DIP CÓRDOBA.xlsx"
     df = pd.read_excel(archivo)
     # Limpieza básica de espacios
     df["Diputado/a"] = df["Diputado/a"].str.strip()
