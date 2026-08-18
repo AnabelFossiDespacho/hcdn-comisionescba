@@ -19,7 +19,7 @@ st.markdown(
 )
 
 
-# 1. Cargar base de datos local desde Excel
+# 1. Cargar base de datos desde Excel
 @st.cache_data
 def cargar_datos_excel():
     archivo = "Comisiones DIP CORDOBA.xlsx"
@@ -41,7 +41,7 @@ except Exception as e:
 @st.cache_data(ttl=1800)
 def obtener_detalle_citacion(url_citacion):
     if not url_citacion:
-        return "No hay link de citación disponible."
+        return "No hay enlace de citación disponible."
 
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
@@ -68,7 +68,7 @@ def obtener_detalle_citacion(url_citacion):
             if len(p_texto) > 20:
                 parrafos.append(p_texto)
 
-        return "\n\n".join(parrafos) if parrafos else "Detalle de citación no disponible directamente en HTML."
+        return "\n\n".join(parrafos) if parrafos else "Sin detalle disponible en formato HTML."
 
     except Exception as e:
         return f"Error al consultar el detalle: {e}"
@@ -141,18 +141,20 @@ vista = st.sidebar.radio(
     ],
 )
 
-# VISTA 1: Cruce de la Semana
+# VISTA 1: Cruce de la Semana con Diseño Visual Mejorado
 if vista == "📅 Agenda de la Semana (Cruce)":
     st.subheader("📅 Convocatorias Detectadas esta Semana")
 
-    if st.button("🔄 Actualizar Agenda"):
-        st.cache_data.clear()
-        st.rerun()
+    col_btn, _ = st.columns([1, 4])
+    with col_btn:
+        if st.button("🔄 Actualizar Agenda"):
+            st.cache_data.clear()
+            st.rerun()
 
     if reuniones_semana:
         encontrados = 0
 
-        for item in reuniones_semana:
+        for idx, item in enumerate(reuniones_semana):
             reunion_texto = item["texto"]
             url_citacion = item["citacion"]
             asistentes_detectados = []
@@ -163,124 +165,52 @@ if vista == "📅 Agenda de la Semana (Cruce)":
                 cargo = row["Cargo que ocupa"]
 
                 if comision.lower() in reunion_texto.lower():
-                    asistentes_detectados.append(
-                        f"• **{diputado}** - *{cargo}* (Comisión: {comision})"
-                    )
+                    asistentes_detectados.append({
+                        "diputado": diputado,
+                        "cargo": cargo,
+                        "comision": comision
+                    })
 
             if asistentes_detectados:
                 encontrados += 1
-                with st.expander(
-                    f"📌 Convocatoria: {reunion_texto[:80]}...", expanded=True
-                ):
-                    st.write("**Resumen de la convocatoria:**")
-                    st.info(reunion_texto)
+                
+                # Encabezado visual para cada reunión
+                st.markdown("---")
+                
+                # Tarjeta principal del evento
+                with st.container():
+                    st.markdown(f"### 📌 Convocatoria #{encontrados}")
+                    
+                    # Dividir la información en 2 columnas: Datos de la reunión | Diputados
+                    col_info, col_dips = st.columns([3, 2])
 
-                    st.write("**Diputados por Córdoba involucrados:**")
-                    for a in set(asistentes_detectados):
-                        st.markdown(a)
+                    with col_info:
+                        st.markdown("#### 📋 Detalle Oficial")
+                        st.info(reunion_texto)
+                        
+                        if url_citacion:
+                            st.markdown(f"🔗 [**Ver citación oficial en la web de HCDN**]({url_citacion})")
 
-                    st.divider()
-
-                    if url_citacion:
-                        st.subheader("📄 Temario y Orden del Día (Citación Oficial)")
-                        with st.spinner("Cargando temario detallado de la HCDN..."):
-                            detalle = obtener_detalle_citacion(url_citacion)
-                            st.text_area(
-                                "Detalle extraído:",
-                                value=detalle,
-                                height=200,
-                                key=f"txt_{encontrados}",
+                    with col_dips:
+                        st.markdown("#### 👥 Diputados por Córdoba")
+                        
+                        # Mostrar cada diputado como una tarjeta limpia
+                        dips_unicos = { (d['diputado'], d['cargo'], d['comision']) for d in asistentes_detectados }
+                        for dip, cargo, com in dips_unicos:
+                            badge_color = "🟢" if "Presidente" in cargo or "Vicepresidente" in cargo else "🔵"
+                            st.markdown(
+                                f"""
+                                <div style="background-color: #f0f2f6; padding: 10px; border-radius: 8px; margin-bottom: 8px;">
+                                    <b>{badge_color} {dip}</b><br>
+                                    <small><b>Cargo:</b> {cargo} | <b>Comisión:</b> {com}</small>
+                                </div>
+                                """,
+                                unsafe_allow_html=True
                             )
-                        st.markdown(
-                            f"🔗 [Abrir documento en web HCDN]({url_citacion})"
-                        )
-                    else:
-                        st.caption("Esta convocatoria no incluye enlace directo a citación.")
 
-        if encontrados == 0:
-            st.info("No se detectaron reuniones para las comisiones asignadas a tus diputados esta semana.")
-            st.markdown("👉 *Consulta la pestaña **'📋 Toda la Agenda HCDN'** para revisar el listado completo.*")
-    else:
-        st.info("No hay reuniones cargadas actualmente.")
-
-# VISTA 2: NUEVA SECCIÓN DE GRÁFICOS Y ESTADÍSTICAS
-elif vista == "📊 Gráficos y Estadísticas":
-    st.subheader("📊 Análisis de Participación de la Delegación Córdoba")
-
-    # Métricas principales (Tarjetas rápidas)
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Total Diputados Categoriados", df_diputados["Diputado/a"].nunique())
-    col2.metric("Total Comisiones Cubiertas", df_diputados["Comisión"].nunique())
-    col3.metric("Total de Asignaciones", len(df_diputados))
-
-    st.divider()
-
-    col_izq, col_der = st.columns(2)
-
-    with col_izq:
-        st.write("### 👥 Cantidad de Comisiones por Diputado/a")
-        # Conteo por diputado
-        conteo_diputados = (
-            df_diputados["Diputado/a"]
-            .value_counts()
-            .reset_index()
-        )
-        conteo_diputados.columns = ["Diputado/a", "Cantidad de Comisiones"]
-        
-        # Gráfico de barras horizontales
-        st.bar_chart(
-            conteo_diputados.set_index("Diputado/a"),
-            height=380,
-        )
-
-    with col_der:
-        st.write("### 🏛️ Comisiones con Mayor Representación de Córdoba")
-        conteo_comisiones = (
-            df_diputados["Comisión"]
-            .value_counts()
-            .reset_index()
-        )
-        conteo_comisiones.columns = ["Comisión", "Cantidad de Diputados"]
-        
-        # Mostrar las comisiones más concurridas
-        st.dataframe(
-            conteo_comisiones,
-            use_container_width=True,
-            hide_index=True,
-            height=380
-        )
-
-# VISTA 3: Toda la agenda publicada
-elif vista == "📋 Toda la Agenda HCDN (con Temarios)":
-    st.subheader("📋 Convocatorias Oficiales y Temarios HCDN")
-
-    if reuniones_semana:
-        for idx, item in enumerate(reuniones_semana):
-            with st.expander(f"Evento #{idx+1}: {item['texto'][:90]}..."):
-                st.write("**Información General:**")
-                st.write(item["texto"])
-
-                if item["citacion"]:
-                    st.markdown("**Temario de la Citación:**")
-                    detalle = obtener_detalle_citacion(item["citacion"])
-                    st.info(detalle)
-                    st.markdown(f"🔗 [Ver Citación en Web HCDN]({item['citacion']})")
-                else:
-                    st.caption("Sin citación adjunta.")
-    else:
-        st.info("No se pudo obtener la agenda general.")
-
-# VISTA 4: Nómina Completa
-else:
-    st.subheader("👥 Integración de Comisiones")
-    diputado_sel = st.selectbox(
-        "Filtrar por Diputado/a:",
-        ["Todos"] + list(df_diputados["Diputado/a"].unique()),
-    )
-
-    if diputado_sel != "Todos":
-        df_filtrado = df_diputados[df_diputados["Diputado/a"] == diputado_sel]
-    else:
-        df_filtrado = df_diputados
-
-    st.dataframe(df_filtrado, use_container_width=True, hide_index=True)
+                    # Subsección desplegable para el Temario / Orden del Día
+                    if url_citacion:
+                        with st.expander("📄 Ver Temario y Orden del Día Completo", expanded=False):
+                            with st.spinner("Cargando orden del día..."):
+                                detalle = obtener_detalle_citacion(url_citacion)
+                                st.markdown(f"```text\n{detalle}\n
