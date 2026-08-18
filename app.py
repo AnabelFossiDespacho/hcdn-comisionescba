@@ -13,30 +13,41 @@ st.set_page_config(
     layout="wide",
 )
 
-# Banner superior con el verdadero Palacio del Congreso de la Nación Argentina
-URL_CONGRESO_ARG = "https://upload.wikimedia.org/wikipedia/commons/c/c8/Palacio_del_Congreso_de_la_Naci%C3%B3n_Argentina%2C_Buenos_Aires.jpg"
-
-st.image(URL_CONGRESO_ARG, use_container_width=True)
-
-# Fondo sutil de la app
+# Estilo personalizado para el Banner e Interfaz Institucional (sin imágenes externas)
 st.markdown(
-    f"""
+    """
     <style>
-    .stApp {{
-        background: linear-gradient(rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.92)), 
-                    url('{URL_CONGRESO_ARG}');
-        background-size: cover;
-        background-position: center;
-        background-attachment: fixed;
-    }}
+    .banner-header {
+        background: linear-gradient(135deg, #1b365d 0%, #2a5298 100%);
+        padding: 2rem;
+        border-radius: 10px;
+        color: white;
+        margin-bottom: 2rem;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .banner-title {
+        font-size: 2rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+    }
+    .banner-subtitle {
+        font-size: 1rem;
+        opacity: 0.9;
+    }
     </style>
     """,
-    unsafe_allow_html=True
+    unsafe_allow_html=True,
 )
 
-st.title("🏛️ CONGRESO - COMISIONES DIPUTADOS CÓRDOBA - PROVINCIAS UNIDAS")
+# Encabezado Banner
 st.markdown(
-    "Cruce automático entre la **Agenda Parlamentaria de la HCDN** y la nómina oficial de diputados."
+    """
+    <div class="banner-header">
+        <div class="banner-title">🏛️ CONGRESO - COMISIONES DIPUTADOS CÓRDOBA</div>
+        <div class="banner-subtitle">Cruce automático entre la Agenda Parlamentaria de la HCDN y la nómina oficial de diputados (Provincias Unidas).</div>
+    </div>
+    """,
+    unsafe_allow_html=True,
 )
 
 
