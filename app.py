@@ -13,22 +13,22 @@ st.set_page_config(
     layout="wide",
 )
 
-# Estilo CSS con imagen de fondo del Congreso atenuada
+# Banner superior con el verdadero Palacio del Congreso de la Nación Argentina
+URL_CONGRESO_ARG = "https://upload.wikimedia.org/wikipedia/commons/c/c8/Palacio_del_Congreso_de_la_Naci%C3%B3n_Argentina%2C_Buenos_Aires.jpg"
+
+st.image(URL_CONGRESO_ARG, use_container_width=True)
+
+# Fondo sutil de la app
 st.markdown(
-    """
+    f"""
     <style>
-    .stApp {
-        background-image: linear-gradient(rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.85)), 
-                          url('https://images.unsplash.com/photo-1541872703-74c5e44368f9?q=80&w=1600&auto=format&fit=crop');
+    .stApp {{
+        background: linear-gradient(rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.92)), 
+                    url('{URL_CONGRESO_ARG}');
         background-size: cover;
         background-position: center;
         background-attachment: fixed;
-    }
-    
-    /* Contenedores con fondo semi-blanco para mejor legibilidad */
-    div[data-testid="stSidebar"] {
-        background-color: rgba(248, 249, 250, 0.9) !important;
-    }
+    }}
     </style>
     """,
     unsafe_allow_html=True
